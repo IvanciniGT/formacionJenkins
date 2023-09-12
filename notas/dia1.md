@@ -431,3 +431,22 @@ Una foto COMPLETA del proyecto en un momento dado del tiempo.
 main/master
 dev
 
+
+
+# Contenedores
+
+
+# Imagen de contenedor
+
+
+Banco 4 clusters de 200 maquinas  < PASTA - IBM CLOUD
+Dpto mantener el cluster
+Dpto devops < Equipo que ayuda a sus desarrolladores a migrar sus app a contenedores
+Cambiar todo el sistema de monitorización
+
+
+Proyecto GC
+Nextcloud -> instalada a hierro
+                                -> Kubernetes
+                                                3 nodos
+                                                Esa aplicación, que es una app estandar de mercado

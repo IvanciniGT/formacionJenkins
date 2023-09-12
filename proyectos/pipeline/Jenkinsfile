@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+
+    tools {
+        maven "MiMaven"
+    }
+
+    stages {
+        stage('Descarga del código') {
+            steps {
+                git 'https://github.com/IvanciniGT/curso-JenkinsCabot'
+            }
+        }        
+        stage('Compilación') {
+            steps {
+                sh 'mvn -f proyectos/proyectomaven1/pom.xml compile'
+                sh 'mvn -f proyectos/proyectomaven1/pom.xml test-compile'
+            }
+        }        
+        stage('Pruebas') {
+            steps {
+                sh 'mvn -f proyectos/proyectomaven1/pom.xml test'
+            }
+            post {
+                always {
+                    junit 'proyectos/proyectomaven1/target/surefire-reports/*.xml'
+                }
+            }
+        }
+        stage('Empaquetado') {
+            steps {
+                sh 'mvn -f proyectos/proyectomaven1/pom.xml package'
+            }
+            post {
+                success {
+                    archiveArtifacts 'proyectos/proyectomaven1/target/*.jar'
+                }
+            }
+        }
+    }
+}
