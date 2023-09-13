@@ -1,0 +1,176 @@
+// En esta sintaxis puedo poner comentarios con la doble barra
+/*
+También podemos poner comentarios en bloque
+Con barra asterisco.
+*/
+
+pipeline {
+
+    // Definimos el agente principal en el que se va a ejecutar este pipeline
+    agent any // En cualquier agente
+
+    // Los agentes (nodos, entornos, servidores) donde Jenkins ejecuta tareas pueden:
+    // precrearse y preconfigurarse en Jenkins...
+    // Al hacerlo les asignamos etiquetas, que posteriormente nos sirven desde los pipelines para solicitar la 
+    // ejecución de una tarea en un TIPO (label, etiqueta) de nodo
+    /*
+    agent {
+        label 'java'
+    }
+    */
+    // Esta solución ya os comenté que es una RUINA !
+    // Tenemos nodos creados de antemano con una configuración RIGIDA (java 1.8, j11, maven 3.6, ...)
+    // El problema es que si yo necesito de repente un programa adicional que no está allí... COMIENZA LA FIESTA !
+    // Estos nodos... con el tiempo... por muy bien que hagamos el trabajo... se van DEGRADANDO -> MNTO
+    // En una instalación de Jenkins, me pueden haber creado nodos con etiqueta "java"
+    // Y si ahora me quiero llevar este pipeline a una instalación de Jenkins alternativa.. más vale que me hayan 
+    // creado los mismo nodos = Con la misma configuración (en cuanto a herramientas) y las mismas etiquetas
+
+    // O pueden crearse dinámicamente mediante un CLOUD de jenkins (Kubernetes, docker, azure)
+    // Pero en este caso, la sintaxis es específica del CLOUD
+    /*
+    agent {
+        kubernetes {
+            cloud 'kubernetes'
+        }
+    }
+    */
+    // Esta es la forma guay:
+    // Al pedir un Agente a un CLOUD, le doy la configuración del agente... YO LA DOY: 
+    //       Quiero un entorn con maven 3.2.5
+    // Son entornos de usar y tirar: No se degradan... no gasto recursos innecesariamente
+    // No depende de que me hayan creado nodos con las mismas etiquetas en Jenkins alternativos
+
+
+    // PARAMETROS DEL SCRIPT
+    // Atención: PROBLEMA, GORDO trabajando con ésto.
+    // 1 - Me creo mi script con parámetros
+    // 2 - En Jenkins doy de alta un Job/Proyecto... donde apunto a un repo de git que contiene mi script
+    // 3 - Ejecuto < PROBLEMON
+    //      Me va a sacar Jenkins el formulario de parámetros al ejecutar el script? 
+    //          DEBERIA... pero no
+    // Y es un problema que ocurre la PRIMERA vez que ejecuto. 
+    // Hasta que no ejecute una vez, no se dan de alta los parámetros en Jenkins
+    // Problemon... se va a ejecutar la primera vez con los parámetros vacios. ME LA PUEDE LIAR PARDA !
+    parameters {
+      string defaultValue: 'pre-produccion', description: 'Entorno en el que ejecuto esta movida', name: 'Entorno'
+      booleanParam defaultValue: true, description: 'Recompilar el proyecto', name: 'recompilar'
+    }
+
+    // Triggers que determinan cuándo se ejecuta el proyecto
+    // Hasta que no ejecuta una vez el proyecto, esto se aplica
+    triggers {
+        pollSCM '* * * * *'
+    }
+
+    // Herramientas que necesito para este pipeline y que deberán estar instalados ( o instalarse autom.)
+    tools {
+
+    }
+
+    // Configuraciones globales del pipeline
+    options {
+        buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '5', numToKeepStr: '')
+    }
+
+    // Empezamos a definir el script y sus tareas
+    stages{
+        stage('NOMBRE DE LA ETAPA') {
+            steps {
+                // Doy de alta las tareas concretas que quiero hacer (con la sintaxis de cada plugin) -> Generador de snipppets
+                // Tarea 1
+                // Tarea 2
+            }
+            post {
+                always {
+                    // Tareas que se ejcutan siempre
+                    // Tarea 3
+                }
+                success {
+                    // Tareas que se ejcutan si los steps han ido bien
+                    // Tarea 4
+                }
+                failure {
+                    // Tareas que se ejcutan si los steps han ido mal
+                    // Tarea 5
+                }
+            }
+            // Cada stage puede tener su propio agente
+            // agent 
+
+            // Variables d entorno dispnibles durante el stage
+            environment {
+                variable = "VALOR"
+            }
+
+            // Me permite ejecutar el stage sólo cuando se cumple la condicion suministrada
+            when {
+                // ...
+                //   environment name: 'navegador', value: 'safari'
+                expression { return params.recompilar }
+            }
+        }
+        stage('NOMBRE DE LA ETAPA2') { ... }
+
+        stage('Pruebas previas') {
+            stages { // Esto me da estructura al fichero
+                stage('Pruebas unitarias') { ... post{...} }  // Las pruebas unitarias generan un informe
+                stage('Pruebas de calidad de código') { ... } // SonarQube. ^^^^^^^^^^^ para determinar lo que llama COBERTURA
+                // Se ejecutan en orden secuencial
+                post{...}
+            }
+            post{...}
+        }
+
+        stage('Pruebas Adicionales') {
+            parallel { // Esto me da estructura al fichero
+                stage('Pruebas de Rendimiento') { ... post{...} }
+                stage('Pruebas de Alta disponibilidad') { ... }
+                post{...}
+                // Me interesa hacer esas pruebas Secuencialmente? NO... tarda mucho
+                // Me interesan en paralelo
+            }
+            post{...}
+        }
+
+        stage('Pruebas de Interfaz gráfica') {
+            // Chrome, Edge, Safari, Opera
+            // windows11, windows10, windows8, ubuntu, macos
+            matrix { // Bucle
+                axes {
+                    axis {
+                        name 'NAVEGADOR'
+                        values 'Chrome', 'Edge', 'Safari', 'Opera'
+                    }
+                    axis {
+                        name 'SO'
+                        values 'windows11', 'windows10', 'windows8', 'ubuntu', 'macos'
+                    }
+                }
+                excludes {
+                    exclude {
+                        axis {
+                            name 'NAVEGADOR'
+                            values 'Safari'
+                        }
+                        axis {
+                            name 'SO'
+                            values 'windows11', 'windows10', 'windows8', 'ubuntu'
+                        }                    
+                    }
+                }
+                stages {
+                    stage('Pruebas en navegador') {
+                        steps {
+                            echo 'Probar la aplicación en el navegador ${NAVEGADOR} desde el SO ${SO}' // Esto escribe en el log de Jenkins
+                        }
+                    }
+                }
+            }
+        }
+
+        post { ... }
+    }
+
+
+}
