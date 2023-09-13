@@ -220,7 +220,22 @@ Cualquier prueba debe probar UNA UNICA característica concreta
 ## En base al nivel de la prueba
 
 - Unitarias     Se centra en una característica de un componente AISLADO del sistema
+
+                                   H2 (bbdd integrada que hay en JAVA que tiene soporte en memoria)
+                                   v
+    TEST --  a  -> Servicio Web -> | MariaDB
+         <-  b  --
+
+                                Test Double (Mock, Spy, Fake, Stub)
+                                v
+    TEST --  a  -> Servicio Web | -> MariaDB
+         <-  b  --
+
 - Integración   Se centra en la COMUNICACION entre componentes
+
+    TEST --  a  -> Servicio Web -> | MariaDB
+         <-  b  --
+ 
 - Sistema       Se centra en el COMPORTAMIENTO del sistema en su conjunto
 
 ## En base al objeto de prueba
@@ -233,6 +248,7 @@ Cualquier prueba debe probar UNA UNICA característica concreta
   - Rendimiento
   - UX
   - UI
+
 
 Tal petición (que detallo) al sistema instalado en TAL entorno, y estando sometido el sistema a TAL carga
 debe tener un Percentil 95 inferior a 100ms en contestar, cuando la ejecuto TANTAS VECES
@@ -432,11 +448,6 @@ main/master
 dev
 
 
-
-# Contenedores
-
-
-# Imagen de contenedor
 
 
 Banco 4 clusters de 200 maquinas  < PASTA - IBM CLOUD
