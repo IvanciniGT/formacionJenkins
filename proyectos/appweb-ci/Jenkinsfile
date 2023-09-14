@@ -1,119 +1,141 @@
-// Pipeline Compilación del Backend
-
 pipeline {
-
     agent {
-        kubernetes {
-            yaml '''
-apiVersion:     v1
-kind:           Pod
-spec:
-    containers:
-        - name: compilador
-          image: maven:3.8-openjdk-11
-          command: 
-            - sleep 
-          args: 
-            - infinity
-        - name: bbdd
-          image: mysql:5.7
-'''
-        }
-        defaultContainer 'compilador'
+            /*
+        POD: 
+            Contenedor: bbdd
+            Contenedor: maven+java: aplicación en funcionamiento * COMO CONTENEDOR POR DEFECTO
+            Contenedor: jmeter
+            Contenedor: postman
+            */
     }
-    
+    // Backend de una app web... que tendré: SERVICIOS WEB
+
+    // De dónde venimos? Compilar + Pruebas unitarias + Pruebas de calidad de código
+    // Aquí qué haremos? 
+    //          Pruebas de unitarias:   Componentes AISLADOS* (Ya realizadas)
+    //          Pruebas de integración: COMUNICACION entre componentes (Éstas las hacemos ahora)
+    //                                          Saber si mi componente que gestiona la BBDD: Repository
+    //                                          se comunica bien con la BBDD
+    //          Pruebas de sistema:     COMPORTAMIENTO del sistema completo (Parte de ellas también)
+    //                                      Las funcionales
+    //                                          Saber si cuando un ente externo llama al servicio web... con unos datos
+    //                                          éste le devuelve lo que tiene que devolver
+    //                                              Necesito: un ente externo:
+    //                                                  SoapUI, Postman, ReadyAPI, Karate
+    //                                                      script
+    //                                      No funcionales
+    //                                          Puedo hacer pruebas de rendimiento?
+    //                                              Para ver cómo un servicio responde a carga de trabajo? NO
+    //                                              Para ver qué tal va el sistema con 1 usuario : LINEA BASE? SI
+    //                                                  Necesito: un ente externo que mida rendimiento:
+    //                                                      JMeter, Loadrunner
+    //                                                          script
+    //      Para poder hacerlas?    Maven... java                 Contenedor
+    //                              NariaDB *** De donde lo saco? Contenedor
+
     stages {
 
-        stage('Descarga de código') {
+        stage('Descarga del código') {
             steps {
-                echo 'Descargo el código del sistema de control de versión'
-                // Truco:
-                // Si tengo el archivo Jenkinsfile dentro del mismo 
-                // repo que mi proyecto, ésto me lo ahorro
+                echo 'Lo saco de git... si es que éste pipeline no está en el mismo repo'
+                    // Necesito el código de las pruebas.. que no está en el artefacto
+                    // proyecto/
+                    //          src/
+                    //              main/ CODIGO DEL PROYECTO... lo que se empaqueta como artefacto
+                    //              test/ CODIGO DE LAS PRUEBAS
+                echo 'Debería recuperar el ARTEFACTO (app) que ya ha sido compilada de antemano y a la que se hicieron las pruebas'
+                    // En el pipeline que hizo las pruebas unitarias... y la compilación debería haber generado un artefacto
+                    // Que es el que despliego y pruebo
             }
         }
-        stage('Compilación') {
+        stage('Preparación del entorno') {
             steps {
-                echo 'Compilamos el código del proyecto'
-                // Nota... con qué compilo? 
-                // Por ejemplo: maven... Tengo maven? 
-                // Opciones para asegurarme que tengo maven?
-                // Opción 1: Rezar a la virgen
-                // Opción 2: Ponerle perejil a San Pancracio
-                // - Confiar en que los admin de Jenkins hayan dado de alta el maven que yo quiero como herramienta
-                // - Añadir un bloque tools con el nombre concreto que los administardores del Jenkins hayan querido poner a esa versión
-                // Opción 3: Generar un agente dinámicamente que tenga el maven que yo quiero
-                // - Dependo de que los administradores del Jenkins hayan configurado un cloud provisionador de agentes
-                // - La tendencia es que pueda trabajar con CONTENEDORES o PODS
-            }
-            /*
-            agent {
-                docker {
-                    image: maven:3.8-openjdk-11
+                container('bbdd'){
+                    echo 'Configuración/Creación/Carga de la BBDD'
                 }
             }
-            */
-            // Docker descarga la imagen de contenedor
-            // Crea un contenedor
-            // Le inyecta un volumen con el contenido de vuestro proyecto
-            // Ejecuta ahí los pasos
-            // Cuando acaba mata el contenedor (borrao, liquidao)
-            // Sigo trabajando en otro entorno el que quiera a continuación, teniendo disponible todos los archivos que haya generado desde dentro del contenedor
-            
-            // Al trabajar con Kubernetes, Openshift, Tamzu...
+        }  
+        stage('Pruebas de integración') {
+            steps {
+                // En el caso de maven las ejecutocon $ mvn verify
+                echo 'Ejecuto las pruebas de integración'
+            }
+            post{
+                always {// Junit: es un framework de java para pruebas. Muy antiguo.. prácticamente el primero.
+                        // Y su formato de informes se ha tomado como estándar.
+                    // junit
+                    echo 'Capturar informe de pruebas'
+                }
+            }
         }
-        stage('Pruebas'){
-            stages {
-                stage('Pruebas unitarias') {
+
+        stage('Otras pruebas') {
+            parallel {
+                stage('Arranco el sistema') {
+                    // Necesito tener arrancado un sistema
+                    // Spring: Libreria para el desarrollo de apps java
                     steps {
-                        echo 'Lanzar las pruebas unitarias' // Y si las pruebas fallan?
-                        // Como consecuencia de ésto se genetará un INFORME DE PRUEBAS UNITARIAS
-                    }
-                    post {
-                        always {
-                            echo 'Publicar el informe de pruebas unitarias'
-                        }
+                        echo 'Lanzo podman para ejecutar las pruebas de sistema'
+                        sh 'mvn springboot:run'
                     }
                 }
-                stage('Pruebas de calidad de código') {
-                    steps {
-                        // Sonar es una herramienta externa a Jenkins
-                        // Que voy a necesitar para hablarme con el sonar..?
-                        // Qué es lo primero que me pedirá el sonar? cuando quiera hablar con él?
-                        //     CREDENCIALES
-                        //withCredentials([string(credentialsId: 'TOKEN_DEL_SONAR', variable: 'tokenDelSonarQueNecesito')]) {
-                        withSonarQubeEnv('MiSonar'){ // Magia del plugin de SonarQube
-                            echo 'Lanzar el sonarQube' // Y si las pruebas fallan?
-                            sh '''
-                                mvn sonar:sonar
-                            '''
-                                    // -Dsonar.host.url=https://misonar.miempresa.com \
-                                    // -Dsonar.login=$tokenDelSonarQueNecesito
+                stage('Lanzar las pruebas') {
+                    stages {
+                        stage('Esperar al sistema') {
+                            steps{
+                                // Meter un sleep o un sleep más listo que mire cuando ha arrancado el sistema
+                            }
                         }
-                                
-                        // Por desgracia, esta petición a Sonar puede tardar horas...
-                        // Y se realiza de forma asíncrona!
-                        // Como consecuencia de ésto se genetará un INFORME DE PRUEBAS UNITARIAS
-
-                            // Entre medias podría estar haciendo otras cositas que necesitase hacer
-
-                        // Necesito protegerme por el servidor de Sonar se ha caido
-                        timeout(time: 1, unit: 'HOURS') {
-                            echo 'Espero a ver que dice el sonar cuando acabe' // Esto lo haré con el plugin del sonar
-                            waitForQualityGate abortPipeline: true
+                        stage('Pruebas de sistema') {
+                            steps{
+                                container('postman') {
+                                    echo 'Lanzo postman para ejecutar las pruebas de sistema'
+                                }
+                            }
+                            post{
+                                always {
+                                    echo 'Capturar informe de pruebas de podman'
+                                }
+                            }
+                        }
+                        stage('Pruebas de rendimiento') {
+                            steps{
+                                container('jmeter') {
+                                    echo 'Lanzo jmeter para ejecutar las pruebas de sistema'
+                                }
+                            }
+                            post{
+                                always {
+                                    echo 'Capturar informe de pruebas de jmeter'
+                                }
+                            }
                         }
                     }
-                    post {
-                        always {
-                            echo 'Publicar el informe de pruebas unitarias'
+                    post{
+                        always{
+                            echo 'Paro el sistema'
                         }
                     }
                 }
             }
         }
+
+        // ^^^^ Un pipeline de Integración CONTINUA
+
+        // vvvv Un pipeline de Entrega Continua
+        // Cierto es que todo lo anterior tiene que haber ido bien... para plantearme hacer esto.
+        //      Es condicion necesaria
+        //      Pero no suficiente. Puede ser que todo haya ido bien.. pero que el producto todavía no este listo...
+        //      Haya más cosas que desarrollar... 
+        // Quién dice que el producto está listo?
+        //      A priori el desarrollador / producto owner
+        //          A quién se lo dice? A git!
+                    // Tendré una rama desarrollo -> release 
+                    // Tengo a un Jenkins leyendo de la rama release... a ver si hay cambios
+                    // Y cuando se entere que hay un nuevo commit, arrancará el pipeline de Entrega Continua
+        // Este es el momento de guardar el Artefacto en un Repositorio de Artefactos: Nexus, Artifactory, JFrog
     }
 
-}
 
-// Las empresas no suelen trabajar con repositorios públicos... sino privados:
-// NEXUS / ARTIFACTORY ... que tengo sincronizados de alguna forma con esos repos publicos
+
+}

@@ -179,7 +179,7 @@ Te voy a crear tu propio entorno (maquinitas) donde te voy a montar mi sistema p
 Pipeline de Jenkins
 Crear infra                Planchar las máquinas                Despliegue de la app
 Script de terraform     -> Playbook de Ansible              ->  Ejecutar Scripts BBDD  (Ansible, Sripts sh, jython wlst)
-- Servidores                - Carpetas                          Preconfigurar una BBDD
+- Servidores (IP)           - Carpetas                          Preconfigurar una BBDD
 - Almacenamiento            - Usuarios                          Backups
 - Redes /subnet             - Paquetería                        Despliegue
 - Balanceadores             - Configuración kernel SO Linux
@@ -187,6 +187,8 @@ Script de terraform     -> Playbook de Ansible              ->  Ejecutar Scripts
 - DNS                       - Configurar agentes de monitorización
 - Certificados
 - Firewall
+- Egress
+- Ingress
 
 Escalar la infra
  3 servidores en cluster -> 14 servidores en cluster... y lo quiero para dentro de YA !

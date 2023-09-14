@@ -1,0 +1,133 @@
+// Pipeline Compilación del Backend
+
+pipeline {
+
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion:     v1
+kind:           Pod
+spec:
+    containers:
+        - name: compilador
+          image: maven:3.8-openjdk-11
+          command: 
+            - sleep 
+          args: 
+            - infinity
+'''
+        }
+        defaultContainer 'compilador'
+    }
+
+    stages {
+
+        stage('Descarga de código') {
+            steps {
+                // echo es un PLUGIN de Jenkins que escribe en el log de Jenkins
+                echo "Descargo el código del sistema de control de versión"
+                // Truco:
+                // Si tengo el archivo Jenkinsfile dentro del mismo 
+                // repo que mi proyecto, ésto me lo ahorro
+                // * NOTA: ESTO SOLO APLICA A SINTAXIS DECLARATIVA
+            }
+        }
+        stage('Compilación') {
+            steps {
+                echo 'Compilamos el código del proyecto'
+                sh 'mvn compile'
+                // Nota... con qué compilo? 
+                // Por ejemplo: maven... Tengo maven? 
+                // Opciones para asegurarme que tengo maven?
+                // Opción 1: Rezar a la virgen
+                // Opción 2: Ponerle perejil a San Pancracio
+                // - Confiar en que los admin de Jenkins hayan dado de alta el maven que yo quiero como herramienta
+                // - Añadir un bloque tools con el nombre concreto que los administardores del Jenkins hayan querido poner a esa versión
+                // Opción 3: Generar un agente dinámicamente que tenga el maven que yo quiero
+                // - Dependo de que los administradores del Jenkins hayan configurado un cloud provisionador de agentes
+                // - La tendencia es que pueda trabajar con CONTENEDORES o PODS
+            }
+            /*
+            agent {
+                docker {
+                    image: maven:3.8-openjdk-11
+                }
+            }
+            */
+            // Docker descarga la imagen de contenedor
+            // Crea un contenedor
+            // Le inyecta un volumen con el contenido de vuestro proyecto
+            // Ejecuta ahí los pasos
+            // Cuando acaba mata el contenedor (borrao, liquidao)
+            // Sigo trabajando en otro entorno el que quiera a continuación, teniendo disponible todos los archivos que haya generado desde dentro del contenedor
+            
+            // Al trabajar con Kubernetes, Openshift, Tamzu...
+        }
+        stage('Pruebas'){
+            stages {
+                stage('Pruebas unitarias') {
+                    // Ejecutar solo si se ha marcado la opcion pertinente
+                    steps {
+                        echo 'Lanzar las pruebas unitarias' // Y si las pruebas fallan?
+                        sh 'mvn test' // Aqui es dopnde pido que se genere el informe JACOCO
+                        // Como consecuencia de ésto se genetará un INFORME DE PRUEBAS UNITARIAS
+                    }
+                    post {
+                        always {
+                            echo 'Publicar el informe de pruebas unitarias'
+                            junit 'target/surefire-reports/*.xml'
+                        }
+                    }
+                } // Si el stage falla, se corta el PIPELINE
+                  // Otra cosa es que haya metido tareas adicionales si hay un error en el stage anterior
+                stage('Generar artefacto') {
+                    // Ejecutar solo si se ha marcado la opcion pertinente
+                    steps {
+                        sh 'mvn package'
+                    }
+                    post {
+                        always {
+                            echo 'Guardar artefacto'
+                            // archiveArtifacts ...
+                        }
+                    }
+                } // Si el stage falla, se corta el PIPELINE
+                  // Otra cosa es que haya metido tareas adicionales si hay un error en el stage anterior
+                stage('Pruebas de calidad de código') {
+                    steps {
+                        // Sonar es una herramienta externa a Jenkins
+                        // Que voy a necesitar para hablarme con el sonar..?
+                        // Qué es lo primero que me pedirá el sonar? cuando quiera hablar con él?
+                        //     CREDENCIALES
+                        //withCredentials([string(credentialsId: 'TOKEN_DEL_SONAR', variable: 'tokenDelSonarQueNecesito')]) {
+                        withSonarQubeEnv('MiSonar'){ // Magia del plugin de SonarQube
+                            echo 'Lanzar el sonarQube' // Y si las pruebas fallan?
+                            sh '''
+                                mvn sonar:sonar
+                            '''
+                                    // -Le doy el informe jacoco
+                                    // -Dsonar.host.url=https://misonar.miempresa.com \
+                                    // -Dsonar.login=$tokenDelSonarQueNecesito
+                        }
+                                
+                        // Por desgracia, esta petición a Sonar puede tardar horas...
+                        // Y se realiza de forma asíncrona!
+                        // Como consecuencia de ésto se genetará un INFORME DE PRUEBAS UNITARIAS
+
+                            // Entre medias podría estar haciendo otras cositas que necesitase hacer
+
+                        // Necesito protegerme por el servidor de Sonar se ha caido
+                        timeout(time: 1, unit: 'HOURS') {
+                            echo 'Espero a ver que dice el sonar cuando acabe' // Esto lo haré con el plugin del sonar
+                            waitForQualityGate abortPipeline: true
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+// Las empresas no suelen trabajar con repositorios públicos... sino privados:
+// NEXUS / ARTIFACTORY ... que tengo sincronizados de alguna forma con esos repos publicos

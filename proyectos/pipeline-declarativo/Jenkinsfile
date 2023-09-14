@@ -162,7 +162,11 @@ pipeline {
                 stages {
                     stage('Pruebas en navegador') {
                         steps {
-                            echo 'Probar la aplicación en el navegador ${NAVEGADOR} desde el SO ${SO}' // Esto escribe en el log de Jenkins
+                            echo "Probar la aplicación en el navegador ${NAVEGADOR} desde el SO ${SO}" // Esto escribe en el log de Jenkins
+                                // Lo que recibe el plugin arriba: "Probar la aplicación en el navegador SAFARI desde el SO UBUNTU"
+                            sh 'echo "Probar la aplicación en el navegador ${NAVEGADOR} desde el SO ${SO}"' // Esto escribe en el log de Jenkins
+                                // Lo que recibe el plugin arriba: echo 'Probar la aplicación en el navegador ${NAVEGADOR} desde el SO ${SO}'
+                                // Otra cosa será que el plugin (el programa que hay detrás del plugin) tenga capacidad para resolver variables
                         }
                     }
                 }
