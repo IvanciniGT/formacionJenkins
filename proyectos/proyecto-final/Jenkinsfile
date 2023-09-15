@@ -1,0 +1,128 @@
+// PLANTILLA DE PIPELINE SCRIPTED
+// Autor: ivanciniGT <ivan.osuna.ayuste@gmail.com>
+
+// Al cambiar la versión, la primera vez que se ejecute el pipeline no ejecutará las tareas.
+// Solo se hace una recarga de la configuración (parámetros, triggers, ...)
+VERSION_DEL_PIPELINE = "1.0.0"
+REPOSITORIO_DEL_PROYECTO = 'https://github.com/IvanciniGT/curso-JenkinsCabot'
+RAMA_POR_DEFECTO = 'master'
+CARPETA_PROYECTO = 'proyectos/proyectomaven1'
+RUTA_POM = "${CARPETA_PROYECTO}/pom.xml"
+
+// Escribir aquí los parámetros del pipeline... separados por comas
+PARAMETROS_DEL_PIPELINE = [
+    string(defaultValue: RAMA_POR_DEFECTO, description: 'Rama del repo en la que ejecuto esta movida', name: 'RAMA_REPOSITORIO'),
+    //booleanParam(defaultValue: true, description: 'Recompilar el proyecto', name: 'recompilar'),
+    booleanParam(defaultValue: true, description: 'Mandar a SonarQube', name: 'PROBAR_CALIDAD_CODIGO'),
+]
+
+// Escribir aquí los triggers del pipeline... separados por comas
+TRIGGERS_DEL_PIPELINE = [
+    //pollSCM('* * * * *'),
+    //cron('* * * * *')
+]
+
+// Si la versión del pipeline: VERSION_DEL_PIPELINE, es distinta de la que está cargada: VERSION_DEL_PIPELINE_INSTALADA, solo se crea la configuración y nada más
+if(nuevaVersionDelPipeline()) return
+
+podTemplate(yaml: '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: maven
+    image: maven:3.6.3-jdk-11
+    command:
+    - sleep
+    args:
+    - infinity
+''') {
+    node(POD_LABEL) {
+        container('maven'){
+            stage('Descarga del código') {
+                git(branch: this.params.getOrDefault('RAMA_REPOSITORIO', RAMA_POR_DEFECTO ), url: REPOSITORIO_DEL_PROYECTO)
+            }
+            try{
+                stage('Lanzar la compilación') {
+                    sh "mvn -f ${RUTA_POM} compile"
+                    sh "mvn -f ${RUTA_POM} test-compile"
+                }
+                stage('Pruebas') {
+                    try {
+                        sh "mvn -f ${RUTA_POM} test"
+                    } finally {
+                        junit "${CARPETA_PROYECTO}/target/surefire-reports/*.xml"
+                    }
+                }
+            } finally {
+                if ( this.params.getOrDefault('PROBAR_CALIDAD_CODIGO', false) ) {
+                    stage('Pruebas de calidad de código') {
+                        withSonarQubeEnv('ElSonarDeMiEmpresa'){
+                            sh "mvn -f ${RUTA_POM} sonar:sonar"
+                        }
+                        timeout(time: 1, unit: 'HOURS') {
+                            waitForQualityGate abortPipeline: true
+                        }
+                    }
+                }
+            }
+            stage('Empaquetado') {
+                sh "mvn -f ${RUTA_POM} package"
+                archiveArtifacts "${CARPETA_PROYECTO}/target/*.jar"
+            }
+            stage('Limpieza del Workspace') { // borra el workspace... pero solo la carpeta target
+                // cleanWs()
+                sh "rm -rf ${CARPETA_PROYECTO}/target/"
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// OJO... Si estás leyendo esto... mu' mal... Scroll pa'rriba
+// No toques aquí nada
+
+// Creo una función para configurar el Pipeline
+def creoConfiguracion(){
+    properties (
+        [
+            parameters(
+                PARAMETROS_DEL_PIPELINE +
+                [
+                    choice(choices: [ VERSION_DEL_PIPELINE ] , description: 'Versión del pipeline', name: 'VERSION_DEL_PIPELINE_INSTALADA'),
+                ]
+            )
+            ,pipelineTriggers( 
+                TRIGGERS_DEL_PIPELINE
+            )
+        ]
+    )
+}
+
+def nuevaVersionDelPipeline() {
+    if ( VERSION_DEL_PIPELINE != this.params.getOrDefault('VERSION_DEL_PIPELINE_INSTALADA','-1') ) {
+        stage('Configuración de la nueva versión del Pipeline') {
+            creoConfiguracion()
+        }
+        return true; // Y dejo de ejecutar el pipeline
+    }
+    return false;
+}
+
