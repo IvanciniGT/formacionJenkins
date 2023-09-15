@@ -1,0 +1,206 @@
+// PLANTILLA DE PIPELINE SCRIPTED
+// Autor: ivanciniGT <ivan.osuna.ayuste@gmail.com>
+
+// Al cambiar la versión, la primera vez que se ejecute el pipeline no ejecutará las tareas.
+// Solo se hace una recarga de la configuración (parámetros, triggers, ...)
+VERSION_DEL_PIPELINE = "1.2.0"
+
+// Escribir aquí los parámetros del pipeline... separados por comas
+PARAMETROS_DEL_PIPELINE = [
+    string(defaultValue: 'pre-produccion', description: 'Entorno en el que ejecuto esta movida', name: 'Entorno'),
+    booleanParam(defaultValue: true, description: 'Recompilar el proyecto', name: 'recompilar'),
+    booleanParam(defaultValue: true, description: 'Probar el proyecto', name: 'probar'),
+]
+
+// Escribir aquí los triggers del pipeline... separados por comas
+TRIGGERS_DEL_PIPELINE = [
+    //pollSCM('* * * * *'),
+    //cron('* * * * *')
+]
+
+// SI LO TOCAS, pierdes!!!
+// Si la versión del pipeline: VERSION_DEL_PIPELINE
+// Es distinta de la que está cargada: VERSION_DEL_PIPELINE_INSTALADA
+// Solo se crea la configuración y nada más
+if(nuevaVersionDelPipeline()) return
+
+// AQUI ES DONDE TIENES QUE PONER TU CODIGO !
+
+//node('java') {  // Equivalente a la marca "agent { label 'java' }" en sintaxis declarativa
+node {  // Equivalente a la marca "agent any" en sintaxis declarativa
+
+    // Aquí podría empezar a poner steps que se ejecutan con plugins
+    echo 'Comenzando el trabajo'
+
+    // Esto hace una referencia al repo de donde se haya sacado el Jenkinsfiloe, para descargar completamente el repo.
+    // checkout scm
+
+    stage('Etapa 0') { // Un stage con pasos
+        echo 'Soy la tarea del Stage 0'
+    }
+    stage('Etapa 1') { // Un stage con pasos + 2 stages que se ejecutan en serie
+        echo 'Soy la tarea del Stage 1'
+        stage('Subetapa 1.1') {
+            echo 'Soy la tarea del Stage 1.1'
+                //sh 'sleep 10'
+        }
+        stage('Subetapa 1.2') {
+            echo 'Soy la tarea del Stage 1.2'
+                //sh 'sleep 10'
+        }
+    }
+    stage('Etapa 2') { // Un stage con pasos + 2 stages que se ejecuatn en paralelo
+        echo 'Soy la tarea del Stage 2'
+        parallel (
+            'Subetapa 2.1': {
+                stage('Subetapa 2.1') {
+                    echo 'Soy la tarea del Stage 2.1'
+                    //sh 'sleep 10'
+                }
+            },
+            'Subetapa 2.2': {
+                stage('Subetapa 2.2') {
+                    echo 'Soy la tarea del Stage 2.2'
+                    //sh 'sleep 10'
+                }
+            }
+        )
+    }
+    stage('Etapa 3') { // Etapa que se ejecuta mediante bucles
+        navegador = ['Chrome', 'Edge', 'Safari', 'Opera']
+        so = ['windows11', 'windows10', 'windows8', 'ubuntu', 'macos']
+        for (int i=0; i<navegador.size(); i++) {
+            for (int j=0; j<so.size(); j++) {
+                if (navegador[i] == 'Safari' && so[j] != 'macos')
+                    continue // Salta a la siguiente iteración del bucle, sin ejecutar más tareas de esa iteración
+                echo "Voy a probar sobre el so: ${so[j]} y navegador: ${navegador[i]}"
+            }            
+        }
+    }
+    stage('Etapa 4') { // Etapa con pasos que pueden generar errores
+        // El try, es lo que usamos en lugar del post
+        try{                        // Intenta hacer una tarea que podría generar un error
+            echo 'Ejecuto unas pruebas'
+            sh 'exit 0' //1' // Simulo que han ido mal
+            
+            echo 'Me ejecuto solo si no hay errores' // ESTO ES EQUVALENTE AL SUCCESS
+        } catch (e) {               // Si ha generado un error, te "ofrezco una salida"
+                                    // Te cuento qué hacer en ese escenario
+                                    // Y ya el error queda REPARADO... No hay problema... A PRIORI
+            echo 'La tarea ha generado errores' // Mando emails a desarrollo
+            throw e // Vuelvo a levantar el error... lo PROPAGO
+                                    // Equivalente al FAILURE
+        } finally {                 // Ponemos tareas que deben ejecutarse tanto si hay errores como si no
+                                    // Equivalente al ALWAYS
+            echo 'Me ejecuto siempre' // En cualquier caso guardo informe de pruebas
+        }
+    }
+    
+    
+    stage('Etapa 6') {
+        sh 'echo HOLA >> fichero.txt' // Genero un fichero de texto en mi workspace
+    }    
+    stage('Etapa 7') {
+        archiveArtifacts( artifacts: 'fichero.txt')// Copiar archivos de la carpeta de mi WorkSpace a la carpeta Jobs
+                         // De forma que pueda consultarlos en el futuro.
+    }
+    
+    stage('Etapa 5') {  // Acceso al API de Jenkins
+        echo 'Ejecuto más cosas' // Este si se ejecuta en este caso !
+        // Tengo acceso completo al API de Jenkins
+        print currentBuild // Es una variable del API de Jenkins con información sobre la ejecución actual
+        // Un objeto de tipo: https://javadoc.jenkins.io/plugin/workflow-support/org/jenkinsci/plugins/workflow/support/steps/build/RunWrapper.html
+        print currentBuild.number
+        print currentBuild.result
+        print currentBuild.displayName
+        print currentBuild.buildCauses
+        print currentBuild.projectName
+        print currentBuild.previousBuild
+
+        // Quiero recuperar un artefacto del último build que fue exitoso
+        // Estoy haciendo un despliegue y explota!...
+        // Qué hago en ese caso? Coge lo último que hubieramos generado SUCCESS y despliega eso
+        // Busca el último build exitoso y restaura en el workspace un artefacto de él
+        def buildAnterior = currentBuild.previousBuild
+        while ( buildAnterior != null ) { // Mientra eexista un build anterior
+            if ( buildAnterior.result == "SUCCESS" ) { // Si es éxito
+                echo 'Ya tengo un build Exitoso... el último exitoso que hubo'
+                print buildAnterior.number // Cojo el número de build
+                try{
+                    copyArtifacts(
+                        filter: 'fichero.txt',
+                        projectName: currentBuild.projectName,
+                        selector: specific( "${buildAnterior.number}" )
+                    )
+                }catch (e){
+                    print "La ejecución: ${buildAnterior.number} no tiene artefacto"
+                }
+                break;
+            }else{ // Si falló o lo cancelaron
+                buildAnterior = buildAnterior.previousBuild // Tomo el anterior del anterior
+            }
+        }
+        
+        
+                
+        /** Estas funciones necesitan permisos especiales */
+        if (currentBuild.rawBuild.getCause(hudson.model.Cause$UserIdCause) != null) {
+            echo 'Esta ejecución ha sido lanzada manualmente'
+        }else if (currentBuild.rawBuild.getCause(hudson.triggers.TimerTrigger$TimerTriggerCause) != null) {
+            echo 'Esta ejecución ha sido lanzada de forma programada en el tiempo'
+        }
+
+    }
+    
+
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// OJO... Si estás leyendo esto... mu' mal... Scroll pa'rriba
+// No toques aquí nada
+
+// Creo una función para configurar el Pipeline
+def creoConfiguracion(){
+    properties (
+        [
+            parameters(
+                PARAMETROS_DEL_PIPELINE +
+                [
+                    choice(choices: [ VERSION_DEL_PIPELINE ] , description: 'Versión del pipeline', name: 'VERSION_DEL_PIPELINE_INSTALADA'),
+                ]
+            )
+            ,pipelineTriggers( 
+                TRIGGERS_DEL_PIPELINE
+            )
+        ]
+    )
+}
+
+def nuevaVersionDelPipeline() {
+    if ( VERSION_DEL_PIPELINE != this.params.getOrDefault('VERSION_DEL_PIPELINE_INSTALADA','-1') ) {
+        stage('Configuración de la nueva versión del Pipeline') {
+            creoConfiguracion()
+        }
+        return true; // Y dejo de ejecutar el pipeline
+    }
+    return false;
+}
+

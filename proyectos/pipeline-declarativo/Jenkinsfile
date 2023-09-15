@@ -57,11 +57,6 @@ pipeline {
       booleanParam defaultValue: true, description: 'Recompilar el proyecto', name: 'recompilar'
     }
 
-    // Triggers que determinan cuándo se ejecuta el proyecto
-    // Hasta que no ejecuta una vez el proyecto, esto se aplica
-    triggers {
-        pollSCM '* * * * *'
-    }
 
     // Herramientas que necesito para este pipeline y que deberán estar instalados ( o instalarse autom.)
     tools {
@@ -73,6 +68,11 @@ pipeline {
         buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '', daysToKeepStr: '5', numToKeepStr: '')
     }
 
+    // Triggers que determinan cuándo se ejecuta el proyecto
+    // Hasta que no ejecuta una vez el proyecto, esto se aplica
+    triggers {
+        pollSCM '* * * * *'
+    }
     // Empezamos a definir el script y sus tareas
     stages{
         stage('NOMBRE DE LA ETAPA') {
