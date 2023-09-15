@@ -26,6 +26,26 @@ if(nuevaVersionDelPipeline()) return
 
 // AQUI ES DONDE TIENES QUE PONER TU CODIGO !
 
+/*
+nodo que se ejecuta en un pod de kubernetes
+
+podTemplate(yaml: '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: maven
+    image: maven:3.6.3-jdk-8
+    command:
+    - sleep
+    args:
+    - infinity
+''') {
+    node(POD_LABEL) {
+
+    }
+}
+*/
 //node('java') {  // Equivalente a la marca "agent { label 'java' }" en sintaxis declarativa
 node {  // Equivalente a la marca "agent any" en sintaxis declarativa
 
